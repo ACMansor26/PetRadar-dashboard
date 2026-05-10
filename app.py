@@ -52,7 +52,6 @@ def cargar_datos_neon():
     try:
         engine = create_engine(DATABASE_URL)
         
-        # EL UPGRADE: Pushdown computation con ventana móvil de 30 días
         query = """
             SELECT * FROM historico_precios 
             WHERE fecha_extraccion >= CURRENT_DATE - INTERVAL '30 days'
@@ -75,7 +74,7 @@ def main():
         st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=120) 
         st.markdown("### Creado por")
         st.markdown("**Amir Mansor**")
-        st.markdown("🚀 *Analytics Engineer*")
+        st.markdown("📊*Analytics Engineer*")
         st.divider()
         st.markdown("Conectemos:")
         st.markdown("[LinkedIn](https://www.linkedin.com/in/amir-mansor25/)")
@@ -92,7 +91,7 @@ def main():
         st.markdown("""
         Bienvenido al buscador inteligente de alimento para mascotas. Dos veces por semana, nuestro sistema recorre las principales tiendas (Mercado Libre, Puppis, Natural Life y Catycan) para ayudarte a encontrar el alimento de tu mascota al **mejor precio real (por kilo)**.
         
-        👉 **¿Cómo funciona?** Usá los filtros de la derecha para elegir lo que buscás, y navegá por las pestañas de abajo para ver el resumen del mercado o ir directo a la vitrina de ofertas.
+        **¿Cómo funciona?** Usá los filtros de la derecha para elegir lo que buscás, y navegá por las pestañas de abajo para ver el resumen del mercado o ir directo a la vitrina de ofertas.
         """)
 
     with col_f:
@@ -134,7 +133,7 @@ def main():
     p_grandes = df_f[df_f['peso_kg'] >= 15]['precio_por_kg'].mean()
     if p_chicas > 0 and p_grandes > 0: p_volumen = (p_chicas - p_grandes) / p_chicas
 
-    # --- CREACIÓN DE PESTAÑAS (TABS) ---
+    # --- CREACIÓN DE PESTAÑAS ---
     tab_dashboard, tab_vitrina, tab_tecnica = st.tabs([
         "📈 Resumen del mercado", 
         "🛒 Vitrina de ofertas", 
@@ -163,7 +162,7 @@ def main():
         g1, g2 = st.columns(2)
         with g1:
             with st.container(border=True):
-                st.markdown("**💰 Precio Promedio por Tienda**")
+                st.markdown("**Precio promedio por tienda**")
                 n = len(df_bar_data)
                 colores = ['#22c55e'] + ['#3b82f6'] * (n - 2) + ['#ef4444'] if n > 2 else ['#22c55e', '#ef4444']
                 df_bar_data['texto'] = df_bar_data['precio_por_kg'].apply(lambda x: f"${x:,.0f}")
@@ -174,7 +173,7 @@ def main():
 
         with g2:
             with st.container(border=True):
-                st.markdown("**📈 Evolución de precios (Por calidad)**")
+                st.markdown("**Evolución de precios de los distintos segmentos**")
                 df_line = df_f.groupby(['fecha_extraccion', 'gama'])['precio_por_kg'].mean().reset_index()
                 fig2 = px.line(df_line, x="fecha_extraccion", y="precio_por_kg", color="gama", markers=True)
                 fig2.update_layout(height=300, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, title=None), margin=dict(l=0,r=0,t=0,b=0), xaxis_title=None, yaxis_title=None, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
@@ -183,7 +182,7 @@ def main():
 
         df_f['max_fecha_tienda'] = df_f.groupby('plataforma')['fecha_extraccion'].transform('max')
         df_hoy = df_f[df_f['fecha_extraccion'] == df_f['max_fecha_tienda']].copy()
-        st.markdown("### 🎯 Comparador: Tamaño de Bolsa vs Precio")
+        st.markdown("### Comparador de tamaño de bolsa vs precio")
         with st.container(border=True):
             fig_s = px.scatter(df_hoy, x="peso_kg", y="precio_por_kg", color="gama", hover_name="titulo_original", hover_data={"gama":False, "precio_total":False, "marca":True, "plataforma":True, "precio_por_kg":":.0f"}, opacity=0.8, color_discrete_sequence=["#3b82f6", "#22c55e", "#f59e0b", "#ef4444"])
             fig_s.update_layout(height=400, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, title=None), margin=dict(l=0,r=0,t=0,b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
@@ -193,7 +192,7 @@ def main():
     # PESTAÑA 2: VITRINA
     # ==========================================
     with tab_vitrina:
-        st.subheader("🛒 Encontrá el mejor precio para tu mascota")
+        st.subheader("Encontrá el mejor precio para tu mascota")
         busqueda = st.text_input(
             "Buscá tu alimento (Ej: Adulto Pequeña Salmón...)", 
             placeholder="Escribí acá las palabras clave..."
@@ -239,7 +238,7 @@ def main():
     # PESTAÑA 3: ARQUITECTURA
     # ==========================================
     with tab_tecnica:
-        st.markdown("### 🛠️ ¿Cómo funciona esta página por detrás?")
+        st.markdown("### ¿Cómo funciona esta página por detrás?")
         st.markdown("""
         Detrás de esta pantalla hay un motor de datos (Data Pipeline) trabajando todos los días para traerte esta información de forma automática:
         
@@ -250,7 +249,7 @@ def main():
         """)
         
         st.divider()
-        st.markdown("#### 📥 Llevate los datos")
+        st.markdown("#### Llevate los datos")
         st.markdown("Si querés ver el detalle o hacer tus propios cálculos en Excel, podés descargar toda la tabla de precios limpios haciendo clic en el botón de abajo.")
         
         csv = df_f.to_csv(index=False).encode('utf-8')
