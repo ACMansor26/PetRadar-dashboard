@@ -2,7 +2,7 @@
 
 Plataforma analítica integral (*End-to-End*) diseñada para monitorear, normalizar y visualizar datos del mercado de alimentos para mascotas. Este proyecto demuestra la implementación de un pipeline ELT moderno, aplicando capas de *Data Quality* y despliegue en la nube para optimizar decisiones comerciales y de *pricing*.
 
-🌍 **[Ver Dashboard en Vivo]([https://tu-link-de-streamlit.app](https://petlytics.streamlit.app/))
+🌍 **[[Ver Dashboard en Vivo](https://petlytics.streamlit.app/)]
 
 ---
 
