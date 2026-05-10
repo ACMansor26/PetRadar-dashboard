@@ -4,7 +4,7 @@ import plotly.express as px
 from sqlalchemy import create_engine
 
 # --- 1. CONFIGURACIÓN Y ESTILO ---
-st.set_page_config(page_title="PetRadar | Monitor de Mercado", page_icon="🐾", layout="wide")
+st.set_page_config(page_title="PetLytics | Monitor de Mercado", page_icon="🐾", layout="wide")
 
 st.markdown("""
     <style>
@@ -86,7 +86,7 @@ def main():
     # --- BLOQUE 1: TÍTULO Y FILTROS GLOBALES ---
     col_t, col_f = st.columns([2, 1])
     with col_t:
-        st.title("🐾 PetRadar | Monitor de Mercado")
+        st.title("🐾 PetLytics | Monitor de Mercado")
         st.markdown("##### Comparador automático de precios y oportunidades de ahorro.")
         
         st.markdown("""
