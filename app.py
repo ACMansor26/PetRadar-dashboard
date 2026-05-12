@@ -232,7 +232,7 @@ def main():
                                     <span style="background-color: rgba(148,163,184,0.1); border: 1px solid rgba(148,163,184,0.2); padding: 2px 6px; border-radius: 4px; font-size: 0.7rem;">⚖️ {row['peso_kg']}kg</span>
                                 </div>
                             """, unsafe_allow_html=True)
-                            st.link_button("Ir a la tienda", row.get('url_publicacion', '#'), type="primary", use_container_width=True)
+                            st.link_button("Ir a la tienda", row.get('url', '#'), type="primary", use_container_width=True)
 
     # ==========================================
     # PESTAÑA 3: ARQUITECTURA
