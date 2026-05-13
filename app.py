@@ -4,7 +4,7 @@ import plotly.express as px
 from sqlalchemy import create_engine
 
 # --- 1. CONFIGURACIÓN Y ESTILO ---
-st.set_page_config(page_title="PetLytics | Monitor de Mercado", page_icon="🐾", layout="wide")
+st.set_page_config(page_title="PetLytics | Pricing Analytics", page_icon="📊", layout="wide")
 
 st.markdown("""
     <style>
@@ -25,7 +25,7 @@ st.markdown("""
     [data-testid="stMetricLabel"] { font-weight: 600 !important; }
     [data-testid="stMetricValue"] { font-size: 32px !important; }
 
-    /* Estilo para bajas de precio (Verde) */
+    /* Estilo para bajas de precio (Verde) - Usamos inverse para inflación */
     [data-testid="stMetricDelta"] svg[data-testid="stMetricDeltaIcon-Down"] { color: #15803d !important; }
     [data-testid="stMetricDelta"] svg[data-testid="stMetricDeltaIcon-Down"] + div { color: #15803d !important; font-weight: 700 !important; }
     
@@ -48,17 +48,18 @@ st.markdown("""
 
 @st.cache_data(ttl=600)
 def cargar_datos_neon():
-    DATABASE_URL = st.secrets["DATABASE_URL"] 
     try:
+        # En producción usa st.secrets. Para pruebas locales podés dejar tu string.
+        DATABASE_URL = "postgresql://neondb_owner:npg_dZ6hozpYA0ut@ep-little-flower-acv5xn2k.sa-east-1.aws.neon.tech/neondb?sslmode=require"
         engine = create_engine(DATABASE_URL)
         
+        # Filtramos directamente en SQL los últimos 30 días para escalabilidad
         query = """
             SELECT * FROM historico_precios 
             WHERE fecha_extraccion >= CURRENT_DATE - INTERVAL '30 days'
         """
-        
         df = pd.read_sql(query, engine)
-        df['fecha_extraccion'] = pd.to_datetime(df['fecha_extraccion'])
+        df['fecha_extraccion'] = pd.to_datetime(df['fecha_extraccion']).dt.date
         df['gama'] = df['gama'].replace('Estandar', 'Estándar') 
         return df
     except Exception as e:
@@ -72,26 +73,26 @@ def main():
     # --- BARRA LATERAL (BRANDING PERSONAL) ---
     with st.sidebar:
         st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=120) 
-        st.markdown("### Creado por")
+        st.markdown("### Hecho por:")
         st.markdown("**Amir Mansor**")
-        st.markdown("📊*Analytics Engineer*")
+        st.markdown("🚀 *Analytics Engineer*")
         st.divider()
         st.markdown("Conectemos:")
-        st.markdown("[LinkedIn](https://www.linkedin.com/in/amir-mansor25/)")
-        st.markdown("[GitHub](https://github.com/ACMansor26)")
+        st.markdown("🔗 [LinkedIn](https://www.linkedin.com/in/amir-mansor25/)")
+        st.markdown("🐙 [GitHub](https://github.com/ACMansor26)")
         st.divider()
-        st.caption("Los precios de esta web se actualizan automáticamente Martes y Viernes buscando las mejores ofertas.")
+        st.caption("Modelo analítico alimentado mediante un pipeline ELT desde PostgreSQL.")
 
     # --- BLOQUE 1: TÍTULO Y FILTROS GLOBALES ---
     col_t, col_f = st.columns([2, 1])
     with col_t:
-        st.title("🐾 PetLytics | Monitor de Mercado")
-        st.markdown("##### Comparador automático de precios y oportunidades de ahorro.")
+        st.title("📊 PetLytics | Retail Data Hub")
+        st.markdown("##### Motor de inteligencia competitiva para el mercado de mascotas.")
         
         st.markdown("""
-        Bienvenido al buscador inteligente de alimento para mascotas. Dos veces por semana, nuestro sistema recorre las principales tiendas (Mercado Libre, Puppis, Natural Life y Catycan) para ayudarte a encontrar el alimento de tu mascota al **mejor precio real (por kilo)**.
+        Esta herramienta consolida datos no estructurados de los principales canales de *retail* para neutralizar la asimetría de precios. Su arquitectura en la nube permite detectar ofertas reales mediante promedios móviles, monitorear la inflación por segmento y cuantificar el sobreprecio por fraccionamiento.
         
-        **¿Cómo funciona?** Usá los filtros de la derecha para elegir lo que buscás, y navegá por las pestañas de abajo para ver el resumen del mercado o ir directo a la vitrina de ofertas.
+        **Instrucciones:** Utilizá los filtros y descubrí oportunidades de mercado en tiempo real.
         """)
 
     with col_f:
@@ -99,16 +100,12 @@ def main():
             f1, f2 = st.columns(2)
             with f1:
                 mascota = st.selectbox("Mascota", ["Ambas"] + sorted(list(df['categoria'].unique())))
-                marcas_seleccionadas = st.multiselect(
-                    "Marca(s)", 
-                    options=sorted(list(df['marca'].unique())), 
-                    placeholder="Elegí una o varias (Vacío = Todas)"
-                )
+                marcas_seleccionadas = st.multiselect("Marca", options=sorted(list(df['marca'].unique())), placeholder="Elegí una o varias")
             with f2:
                 gama = st.selectbox("Calidad", ["Todas"] + sorted(list(df['gama'].unique())))
                 tienda = st.selectbox("Tienda", ["Todas"] + sorted(list(df['plataforma'].unique())))
 
-    # Filtrado del DataFrame
+    # Filtrado Dinámico
     df_f = df.copy()
     if mascota != "Ambas": df_f = df_f[df_f['categoria'] == mascota]
     if marcas_seleccionadas: df_f = df_f[df_f['marca'].isin(marcas_seleccionadas)]
@@ -120,24 +117,37 @@ def main():
     avg_total = df_f['precio_por_kg'].mean()
     brecha_marca = df_f.groupby('marca')['precio_por_kg'].agg(lambda x: x.max() - x.min()).mean()
     
-    tendencia, dif_pesos = 0, 0
+    # 1. Macroeconomía: Índice Pet-Flación (Nuevo)
+    pet_flacion = 0
+    dias_periodo = 0
+    tendencia = 0
+    dif_pesos = 0
     if len(fechas) > 1:
+        # Variación diaria
         p_actual = df_f[df_f['fecha_extraccion'] == fechas[0]]['precio_por_kg'].mean()
         p_prev = df_f[df_f['fecha_extraccion'] == fechas[1]]['precio_por_kg'].mean()
         if p_prev > 0:
             tendencia = (p_actual - p_prev) / p_prev
             dif_pesos = p_actual - p_prev
+            
+        # Variación Acumulada (Pet-Flación)
+        fecha_reciente = fechas[0]
+        fecha_antigua = fechas[-1]
+        p_base = df_f[df_f['fecha_extraccion'] == fecha_antigua]['precio_por_kg'].mean()
+        if p_base > 0:
+            pet_flacion = (p_actual - p_base) / p_base
+        dias_periodo = (fecha_reciente - fecha_antigua).days
 
     p_volumen = 0
     p_chicas = df_f[df_f['peso_kg'] <= 3]['precio_por_kg'].mean()
     p_grandes = df_f[df_f['peso_kg'] >= 15]['precio_por_kg'].mean()
     if p_chicas > 0 and p_grandes > 0: p_volumen = (p_chicas - p_grandes) / p_chicas
 
-    # --- CREACIÓN DE PESTAÑAS ---
+    # --- CREACIÓN DE PESTAÑAS (TABS) ---
     tab_dashboard, tab_vitrina, tab_tecnica = st.tabs([
-        "📈 Resumen del mercado", 
+        "📈 Business Insights", 
         "🛒 Vitrina de ofertas", 
-        "🛠️ ¿Cómo se hizo esto?"
+        "⚙️ Arquitectura ELT"
     ])
 
     # ==========================================
@@ -146,23 +156,28 @@ def main():
     with tab_dashboard:
         df_bar_data = df_f.groupby('plataforma')['precio_por_kg'].mean().sort_values().reset_index()
         if not df_bar_data.empty and len(df_bar_data) >= 2:
-            t_min, p_min = df_bar_data.iloc[0]['plataforma'], df_bar_data.iloc[0]['precio_por_kg']
-            t_max, p_max = df_bar_data.iloc[-1]['plataforma'], df_bar_data.iloc[-1]['precio_por_kg']
-            ahorro = (p_max - p_min) / p_max
-            st.info(f"💡 **El resumen de hoy:** Actualmente, la tienda más barata en promedio es **{t_min}**. Comprar acá en lugar de *{t_max}* te puede ahorrar hasta un **{ahorro:.1%}**. Además, si comprás bolsas grandes (más de 15kg), te ahorrás un **{p_volumen:.1%}** extra frente a las bolsas chicas.")
+            t_min = df_bar_data.iloc[0]['plataforma']
+            t_max = df_bar_data.iloc[-1]['plataforma']
+            st.info(f"💡 **Insight Macro:** En los últimos {dias_periodo} días, la cohorte analizada registró una inflación acumulada del **{pet_flacion:+.1%}**. Operativamente, migrar la compra del canal más costoso (*{t_max}*) al más eficiente (*{t_min}*) neutraliza este impacto de mercado.")
 
-        k1, k2, k3, k4, k5 = st.columns(5)
-        k1.metric("Diferencia de Precios", f"${brecha_marca:,.0f}", help="Es la diferencia promedio en pesos que hay entre la tienda más cara y la más barata para un mismo alimento.")
-        k2.metric("Precio Promedio (Kg)", f"${avg_total:,.0f}", help="El precio promedio por kilo de todo lo que estás viendo en pantalla.")
-        k3.metric("Variación vs Ayer", f"${abs(dif_pesos):,.0f}", delta=f"{tendencia:+.2%}", delta_color="inverse", help="Muestra si los precios subieron o bajaron comparado con nuestra última revisión.")
-        k4.metric("Ahorro por Bolsa Grande", f"{p_volumen:.1%}", help="El porcentaje de plata que te ahorrás por kilo al comprar bolsas de más de 15kg en lugar de bolsas pequeñas.")
-        k5.metric("Ahorro Máximo Posible", f"{abs(ahorro):.1%}" if 'ahorro' in locals() else "0%", help="La diferencia de precio entre la opción más barata y la más cara del mercado.")
+        # Reorganizamos en 2 filas de 3 KPIs para mejor lectura
+        k1, k2, k3 = st.columns(3)
+        k1.metric("Costo promedio (Kg)", f"${avg_total:,.0f}", help="Costo promedio por kilogramo ponderado sobre el set de datos actual.")
+        k2.metric("Spread Promedio (Max-Min)", f"${brecha_marca:,.0f}", help="Dispersión detectada para un mismo producto entre canales.")
+        k3.metric("Costo de Fraccionamiento", f"{p_volumen:.1%}", help="Sobreprecio asumido al adquirir formatos <=3kg vs volumen (15kg+).")
+
+        st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
+        
+        k4, k5, k6 = st.columns(3)
+        k4.metric("Inflación Acumulada (Periodo)", f"{pet_flacion:+.1%}", delta=f"{pet_flacion:+.2%}", delta_color="inverse", help=f"Índice Base 100 de la variación de precios en los últimos {dias_periodo} días.")
+        k5.metric("Variación Marginal (Ayer)", f"${abs(dif_pesos):,.0f}", delta=f"{tendencia:+.2%}", delta_color="inverse", help="Ajuste de precio detectado en la última corrida del pipeline.")
+        k6.metric("Eficiencia Máxima de Canal", f"{( (df_bar_data.iloc[-1]['precio_por_kg'] - df_bar_data.iloc[0]['precio_por_kg']) / df_bar_data.iloc[-1]['precio_por_kg'] ):.1%}" if not df_bar_data.empty else "0%", help="Ahorro posible entre el retailer más caro y el más barato del día.")
 
         st.divider()
         g1, g2 = st.columns(2)
         with g1:
             with st.container(border=True):
-                st.markdown("**Precio promedio por tienda**")
+                st.markdown("**Promedio de costos por tienda**")
                 n = len(df_bar_data)
                 colores = ['#22c55e'] + ['#3b82f6'] * (n - 2) + ['#ef4444'] if n > 2 else ['#22c55e', '#ef4444']
                 df_bar_data['texto'] = df_bar_data['precio_por_kg'].apply(lambda x: f"${x:,.0f}")
@@ -173,90 +188,94 @@ def main():
 
         with g2:
             with st.container(border=True):
-                st.markdown("**Evolución de precios de los distintos segmentos**")
+                st.markdown("**Curva de precios por segmento**")
                 df_line = df_f.groupby(['fecha_extraccion', 'gama'])['precio_por_kg'].mean().reset_index()
                 fig2 = px.line(df_line, x="fecha_extraccion", y="precio_por_kg", color="gama", markers=True)
                 fig2.update_layout(height=300, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, title=None), margin=dict(l=0,r=0,t=0,b=0), xaxis_title=None, yaxis_title=None, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
                 fig2.update_xaxes(tickformat="%d %b")
                 st.plotly_chart(fig2, use_container_width=True)
 
-        df_f['max_fecha_tienda'] = df_f.groupby('plataforma')['fecha_extraccion'].transform('max')
-        df_hoy = df_f[df_f['fecha_extraccion'] == df_f['max_fecha_tienda']].copy()
-        st.markdown("### Comparador de tamaño de bolsa vs precio")
-        with st.container(border=True):
-            fig_s = px.scatter(df_hoy, x="peso_kg", y="precio_por_kg", color="gama", hover_name="titulo_original", hover_data={"gama":False, "precio_total":False, "marca":True, "plataforma":True, "precio_por_kg":":.0f"}, opacity=0.8, color_discrete_sequence=["#3b82f6", "#22c55e", "#f59e0b", "#ef4444"])
-            fig_s.update_layout(height=400, showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, title=None), margin=dict(l=0,r=0,t=0,b=0), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-            st.plotly_chart(fig_s, use_container_width=True)
-
     # ==========================================
-    # PESTAÑA 2: VITRINA
+    # PESTAÑA 2: VITRINA CON DEAL SCORE
     # ==========================================
     with tab_vitrina:
-        st.subheader("Encontrá el mejor precio para tu mascota")
-        busqueda = st.text_input(
-            "Buscá tu alimento (Ej: Adulto Pequeña Salmón...)", 
-            placeholder="Escribí acá las palabras clave..."
-        )
+        st.subheader("🛒 Detección de Oportunidades")
+        busqueda = st.text_input("Buscador de oportunidades (Ej: Pro Plan Adulto)", placeholder="Parámetros de búsqueda...")
         
         if len(fechas) > 0:
+            # 1. Calculamos el promedio histórico de cada producto en todo el DF
+            hist_avg = df_f.groupby('titulo_original')['precio_por_kg'].mean().reset_index()
+            hist_avg.rename(columns={'precio_por_kg': 'precio_hist_promedio'}, inplace=True)
+            
+            # 2. Aislamos la foto de hoy
             df_vitrina = df_f[df_f['fecha_extraccion'] == fechas[0]].copy()
+            
+            # 3. Cruzamos (Join) los datos de hoy con su promedio histórico
+            df_vitrina = pd.merge(df_vitrina, hist_avg, on='titulo_original', how='left')
+            
+            # 4. DEAL SCORE: Calculamos si hoy está más barato que su propia historia
+            df_vitrina['descuento_vs_hist'] = (df_vitrina['precio_hist_promedio'] - df_vitrina['precio_por_kg']) / df_vitrina['precio_hist_promedio']
             
             if busqueda:
                 for palabra in busqueda.strip().split():
                     df_vitrina = df_vitrina[df_vitrina['titulo_original'].str.contains(palabra, case=False, na=False)]
-            
-            if busqueda:
                 df_top = df_vitrina.sort_values('precio_por_kg', ascending=True).head(24)
             else:
                 df_top = df_vitrina.sort_values('precio_por_kg').groupby('marca').head(2).head(20)
             
             if df_top.empty:
-                st.info("No encontramos ningún alimento que coincida con esa búsqueda. ¡Probá con otras palabras!")
+                st.info("La query no devolvió resultados en el snapshot actual.")
             else:
                 cols = st.columns(4)
                 for i, row in df_top.reset_index().iterrows():
                     with cols[i % 4]:
                         with st.container(border=True):
                             img = row.get('imagen_url') if pd.notna(row.get('imagen_url')) else 'https://via.placeholder.com/150'
+                            
+                            # Generación del Badge de Oferta Real (Flotante)
+                            oferta_badge = ""
+                            if row.get('descuento_vs_hist', 0) >= 0.05: 
+                                dcto = row['descuento_vs_hist'] * 100
+                                # Agregamos position: absolute y ajustamos los bordes/sombras
+                                oferta_badge = f"""<div style="position: absolute; bottom: 8px; left: 8px; background-color: #ef4444; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">🔥 OFERTA REAL (-{dcto:.0f}%)</div>"""
+
+                            # En el div contenedor de la imagen agregamos: position: relative;
                             st.markdown(f"""
-                                <div style="background-color: white; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: center; height: 160px; padding: 10px;">
+                                <div style="background-color: white; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: center; height: 160px; padding: 10px; position: relative;">
                                     <img src="{img}" style="max-height: 100%; object-fit: contain;">
+                                    {oferta_badge}
                                 </div>
-                                <p title='{row['titulo_original']}' style='font-weight: 600; line-height: 1.2; height: 40px; overflow: hidden;'>{str(row['titulo_original'])[:45]}...</p>
+                                <p title='{row['titulo_original']}' style='font-weight: 600; line-height: 1.2; height: 40px; overflow: hidden; margin-bottom: 5px;'>{str(row['titulo_original'])[:40]}...</p>
                                 <div style="margin-bottom: 10px;">
-                                    <span style="color: #94a3b8; font-size: 0.8rem;">Total:</span> <strong style="font-size: 1.2rem; color: #3b82f6;">${row['precio_total']:,.0f}</strong><br>
-                                    <span style="color: #94a3b8; font-size: 0.8rem;">Por Kg:</span> <strong>${row['precio_por_kg']:,.0f}</strong>
+                                    <span style="color: #94a3b8; font-size: 0.8rem;">Facturación:</span> <strong style="font-size: 1.2rem; color: #3b82f6;">${row['precio_total']:,.0f}</strong><br>
+                                    <span style="color: #94a3b8; font-size: 0.8rem;">Costo/Kg:</span> <strong>${row['precio_por_kg']:,.0f}</strong>
                                 </div>
                                 <div style="display: flex; gap: 5px; margin-bottom: 10px; flex-wrap: wrap;">
-                                    <span style="background-color: rgba(148,163,184,0.1); border: 1px solid rgba(148,163,184,0.2); padding: 2px 6px; border-radius: 4px; font-size: 0.7rem;">🏪 {row['plataforma']}</span>
+                                    <span style="background-color: rgba(148,163,184,0.1); border: 1px solid rgba(148,163,184,0.2); padding: 2px 6px; border-radius: 4px; font-size: 0.7rem;">🏢 {row['plataforma']}</span>
                                     <span style="background-color: rgba(148,163,184,0.1); border: 1px solid rgba(148,163,184,0.2); padding: 2px 6px; border-radius: 4px; font-size: 0.7rem;">⚖️ {row['peso_kg']}kg</span>
                                 </div>
                             """, unsafe_allow_html=True)
-                            st.link_button("Ir a la tienda", row.get('url', '#'), type="primary", use_container_width=True)
+                            st.link_button("Ir a la publicación", row.get('url', '#'), type="primary", use_container_width=True)
 
     # ==========================================
     # PESTAÑA 3: ARQUITECTURA
     # ==========================================
     with tab_tecnica:
-        st.markdown("### ¿Cómo funciona esta página por detrás?")
+        st.markdown("### ⚙️ Fundamentos de la Arquitectura de Datos")
         st.markdown("""
-        Detrás de esta pantalla hay un motor de datos (Data Pipeline) trabajando todos los días para traerte esta información de forma automática:
-        
-        * **1. Recolección automática:** Un programa (scraper) visita diariamente las webs de las tiendas de mascotas más grandes y anota todos sus precios y ofertas.
-        * **2. Limpieza Inteligente:** Un algoritmo revisa los títulos de cada alimento, arregla los errores que cometen los vendedores, calcula el precio exacto por kilo y separa automáticamente si es alimento para perro o para gato.
-        * **3. Almacenamiento:** Todos esos datos limpios se guardan de forma segura en una base de datos en la nube (PostgreSQL).
-        * **4. Este tablero:** Finalmente, esta web lee esos datos y arma los gráficos para que cualquier persona pueda entender fácilmente dónde le conviene comprar.
+        * **1. Extracción (Ingesta):** Recolección automatizada resolviendo barreras de seguridad (TLS/Cloudflare) para garantizar flujo de datos diario.
+        * **2. Transformación (ELT & Quality):** Lógica vectorizada en Pandas para unificar monedas, normalizar métricas y aplicar heurísticas de negocio (ej. Deal Scoring mediante media móvil).
+        * **3. Persistencia (Storage):** Modelado en esquema relacional y carga en PostgreSQL Cloud (Neon DB).
+        * **4. Presentación (Semántica):** Traducción de datos limpios a KPIs financieros auditables en tiempo real, maximizando el *Time-to-Insight*.
         """)
         
         st.divider()
-        st.markdown("#### Llevate los datos")
-        st.markdown("Si querés ver el detalle o hacer tus propios cálculos en Excel, podés descargar toda la tabla de precios limpios haciendo clic en el botón de abajo.")
-        
+        st.markdown("#### 📥 Democratización de datos")
         csv = df_f.to_csv(index=False).encode('utf-8')
         st.download_button(
-            label="Descargar listado de precios (CSV)",
+            label="Descargar Modelo Analítico Filtrado (CSV)",
             data=csv,
-            file_name='precios_mascotas.csv',
+            file_name='modelo_analitico_petlytics.csv',
             mime='text/csv',
             type="primary"
         )
@@ -264,8 +283,8 @@ def main():
     # --- FOOTER PROFESIONAL ---
     st.markdown("""
         <div style="text-align: center; margin-top: 50px; padding-top: 20px; border-top: 1px solid var(--secondary-background-color); color: #94a3b8; font-size: 0.85rem;">
-            Pet Intelligence Dashboard v1.0 &copy; 2026<br>
-            Hecho para ayudar a los dueños de mascotas a cuidar su bolsillo con el poder de los datos.
+            PetLytics Market Monitor v2.0 &copy; 2026<br>
+            Construido mediante Analytics Engineering para la neutralización de la asimetría de precios.
         </div>
     """, unsafe_allow_html=True)
 
