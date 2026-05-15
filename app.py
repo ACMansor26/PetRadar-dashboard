@@ -164,13 +164,13 @@ def main():
         k1, k2, k3 = st.columns(3)
         k1.metric("Costo promedio (Kg)", f"${avg_total:,.0f}", help="Costo promedio por kilogramo ponderado sobre el set de datos actual.")
         k2.metric("Spread Promedio (Max-Min)", f"${brecha_marca:,.0f}", help="Dispersión detectada para un mismo producto entre canales.")
-        k3.metric("Costo de Fraccionamiento", f"{p_volumen:.1%}", help="Sobreprecio asumido al adquirir formatos <=3kg vs volumen (15kg+).")
+        k3.metric("Costo de Fraccionamiento", f"{p_volumen:.1%}", help="Sobreprecio asumido al adquirir formatos menores a 3kg vs volumen (15kg+).")
 
         st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
         
         k4, k5, k6 = st.columns(3)
         k4.metric("Inflación Acumulada (Periodo)", f"{pet_flacion:+.1%}", delta=f"{pet_flacion:+.2%}", delta_color="inverse", help=f"Índice Base 100 de la variación de precios en los últimos {dias_periodo} días.")
-        k5.metric("Variación Marginal (Ayer)", f"${abs(dif_pesos):,.0f}", delta=f"{tendencia:+.2%}", delta_color="inverse", help="Ajuste de precio detectado en la última corrida del pipeline.")
+        k5.metric("Variación Marginal", f"${abs(dif_pesos):,.0f}", delta=f"{tendencia:+.2%}", delta_color="inverse", help="Ajuste de precio detectado en la última corrida del pipeline.")
         k6.metric("Eficiencia Máxima de Canal", f"{( (df_bar_data.iloc[-1]['precio_por_kg'] - df_bar_data.iloc[0]['precio_por_kg']) / df_bar_data.iloc[-1]['precio_por_kg'] ):.1%}" if not df_bar_data.empty else "0%", help="Ahorro posible entre el retailer más caro y el más barato del día.")
 
         st.divider()
@@ -188,12 +188,49 @@ def main():
 
         with g2:
             with st.container(border=True):
-                st.markdown("**Curva de precios por segmento**")
+                st.markdown("**Evolución de precios por segmento**")
                 df_line = df_f.groupby(['fecha_extraccion', 'gama'])['precio_por_kg'].mean().reset_index()
-                fig2 = px.line(df_line, x="fecha_extraccion", y="precio_por_kg", color="gama", markers=True)
+                
+                # Agregamos log_y=True
+                fig2 = px.line(df_line, x="fecha_extraccion", y="precio_por_kg", color="gama", markers=True, log_y=True)
+                
                 fig2.update_layout(height=300, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, title=None), margin=dict(l=0,r=0,t=0,b=0), xaxis_title=None, yaxis_title=None, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
                 fig2.update_xaxes(tickformat="%d %b")
+                
+                # Opcional: Le ponemos el signo $ al eje Y para que quede más prolijo
+                fig2.update_yaxes(tickprefix="$")
+                
                 st.plotly_chart(fig2, use_container_width=True)
+
+    # --- DISPERSIÓN PRECIO VS PESO ---
+        st.markdown("### Análisis de eficiencia: precio vs. tamaño de bolsa")
+        with st.container(border=True):
+            df_scatter = df_f[df_f['fecha_extraccion'] == fechas[0]].copy()
+            
+            fig_scatter = px.scatter(
+                df_scatter,
+                x="peso_kg",
+                y="precio_por_kg",
+                color="gama",
+                size="precio_total",
+                hover_name="titulo_original",
+                labels={
+                    "peso_kg": "Peso de la bolsa (Kg)",
+                    "precio_por_kg": "Costo por Kilogramo ($)",
+                    "gama": "Calidad"
+                },
+                template="plotly_white",
+                color_discrete_sequence=["#3b82f6", "#22c55e", "#f59e0b", "#ef4444"]
+            )
+            
+            fig_scatter.update_layout(
+                height=450,
+                margin=dict(l=20, r=20, t=20, b=20),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            
+            st.plotly_chart(fig_scatter, use_container_width=True)
+            st.caption("Nota: Las burbujas más grandes representan un gasto total mayor. Buscá los puntos más bajos en el eje Y para maximizar el ahorro por kilo.")
 
     # ==========================================
     # PESTAÑA 2: VITRINA CON DEAL SCORE
