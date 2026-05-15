@@ -221,7 +221,6 @@ def main():
     col_hero, col_filtros = st.columns([2, 1])
 
     with col_hero:
-        st.markdown('<span class="hero-badge">✅ Pipeline en producción</span>', unsafe_allow_html=True)
         st.title("PetLytics — Inteligencia de Precios")
         st.markdown("##### Detectá ofertas reales, monitoreá la inflación por segmento y tomá decisiones de compra basadas en datos.")
 
