@@ -5,7 +5,7 @@
 ![Streamlit](https://img.shields.io/badge/Streamlit-Live-FF4B4B?logo=streamlit&logoColor=white)
 ![Status](https://img.shields.io/badge/Pipeline-Activo%20·%20Diario-22c55e)
 
-Plataforma analítica *end-to-end* que monitorea, normaliza y visualiza datos de precios del mercado de alimentos para mascotas en Argentina. El proyecto implementa un pipeline ELT productivo con actualización diaria, almacenamiento cloud y un dashboard de inteligencia de precios orientado a decisiones de negocio.
+Plataforma analítica *end-to-end* que monitorea, normaliza y visualiza datos de precios del mercado de alimentos para mascotas en Argentina. El proyecto implementa un pipeline ELT productivo con una actualización de dos veces por semana, almacenamiento cloud y un dashboard de inteligencia de precios orientado a decisiones de negocio.
 
 🌍 **[Ver Dashboard en Vivo →](https://petlytics.streamlit.app/)**
 
@@ -43,7 +43,7 @@ El mercado minorista de alimentos para mascotas presenta tres fricciones analít
 │  │...     │  │  │Deal Score  │  │  │        │  │  │Heatmap  │ │
 │  └────────┘  │  └────────────┘  │  └────────┘  │  └─────────┘ │
 └──────────────┴──────────────────┴──────────────┴───────────────┘
-                        ↑ corre diariamente ↑
+                        ↑ corre martes y viernes ↑
 ```
 
 ### Detalle por capa
